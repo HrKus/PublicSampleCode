@@ -1,0 +1,128 @@
+---
+title: "CmdStanRの導入とガウス過程の演習"
+output: html_notebook
+---
+
+2021/12/21 Yu NAMMOKU
+
+インストール
+
+```{r}
+# we recommend running this is a fresh R session or restarting your current session
+install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+```
+
+```{r}
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+color_scheme_set("brightblue")
+```
+
+```{r}
+set_cmdstan_path(path = "/usr/local/cmdstan-2.28.2")
+cmdstan_version()
+```
+
+Stanファイルのコンパイル・読み込み
+
+```{r}
+Gaussian_process_01 <- file.path("./Gaussian_process_01.stan")
+Gaussian_process_02 <- file.path("./Gaussian_process_02.stan")
+mod01 <- cmdstan_model(Gaussian_process_01)
+mod02 <- cmdstan_model(Gaussian_process_02)
+
+mod01$print()
+mod02$print()
+```
+
+## 入力が一次元のガウス過程回帰(正弦波予測)
+
+```{r}
+# 正弦波をデータとして利用
+sin_data <- data.frame(x=seq(1,40,length.out = 60), y=sin(seq(1,40,length.out = 60)))
+N1 <- nrow(sin_data)
+x1 <- sin_data$x - mean(sin_data$x)
+y1 <- sin_data$y - mean(sin_data$y)
+N2 <- 40
+x2 <- seq(min(x1)-10, max(x1)+10, length.out = 40)
+
+standata_sin <- list(N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)
+```
+
+```{r}
+MCMC_sin <- mod01$sample(standata_sin,
+                       iter_warmup = 1000,
+                       iter_sampling = 1000,
+                       chains = 4,
+                       parallel_chains = 4,
+                       refresh = 50)
+```
+
+グレーが訓練データ、青が予測平均と95%信用区間。
+
+内挿についてはほとんど誤差なく、外挿についても正弦波の傾向は捉えている。
+
+```{r}
+pred <- MCMC_sin$summary() %>%
+  dplyr::filter(grepl('y', variable))
+ggplot()+
+  geom_point(aes(x=x1, y=y1),alpha = 0.5)+
+  geom_line(aes(x=x1, y=y1),alpha = 0.5)+
+  geom_point(data=pred,aes(x=x2, y=mean),color="blue")+
+  geom_ribbon(data=pred,aes(x=x2,y=mean,ymin=q5,ymax=q95),fill="blue",alpha=0.5)+
+  theme_light()
+```
+
+## 入力が多次元のガウス過程回帰
+
+```{r}
+iris_data <- 
+  as_tibble(iris) %>%
+  select(-Species) %>%
+  scale() %>%
+  as_tibble() %>%
+  mutate(ID = row_number())
+
+# 25%をテスト用に分ける。
+train <- iris_data %>% filter(ID%%4 != 0) %>% as.matrix()
+test <- iris_data %>% filter(ID%%4 == 0) %>% as.matrix()
+
+N1 <- nrow(train)
+x1 <- train[,2:4]
+y1 <- train[,1]
+N2 <- nrow(test)
+x2 <- test[,2:4]
+D <- ncol(x1)
+
+standata_iris <- list(D = D, N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)
+```
+
+```{r}
+MCMC_iris <- mod02$sample(standata_iris,
+                       iter_warmup = 1000,
+                       iter_sampling = 1000,
+                       chains = 4,
+                       parallel_chains = 4,
+                       refresh = 50)
+```
+
+テストデータのy-yプロット(実現値と予測値のプロット)
+
+irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。
+
+```{r}
+yyplot_iris <- MCMC_iris$summary() %>%
+  dplyr::filter(grepl('y2', variable)) %>%
+  ggplot()+
+  geom_abline(slope=1, intercept=0, alpha = 0.3)+
+  geom_point(aes(x=test[,1], y=mean), color = "blue", alpha=0.5)+
+  geom_errorbar(aes(x=test[,1], y=mean,ymin=q5, ymax=q95), alpha=0.5, color = "blue")+
+  coord_fixed()+
+  xlab("Sepal.Length")+
+  ylab("Prediction")+
+  theme_bw()
+
+yyplot_iris
+```
