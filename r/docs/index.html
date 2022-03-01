@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="南木　悠" />
+
+<meta name="date" content="2021-12-20" />
+
+<title>CmdStanRの導入とガウス過程回帰の演習</title>
+
+<script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.tab('show');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">R codes</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">CmdStanRの導入とガウス過程回帰の演習</h1>
+<h4 class="author">南木　悠</h4>
+<h4 class="date">12/20/2021</h4>
+
+</div>
+
+
+<div id="インストール" class="section level2">
+<h2>インストール</h2>
+<pre class="r"><code># we recommend running this is a fresh R session or restarting your current session
+install.packages(&quot;cmdstanr&quot;, repos = c(&quot;https://mc-stan.org/r-packages/&quot;, getOption(&quot;repos&quot;)))</code></pre>
+<pre class="r"><code>library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(tidyverse)
+color_scheme_set(&quot;brightblue&quot;)</code></pre>
+<pre class="r"><code>set_cmdstan_path(path = &quot;/usr/local/cmdstan-2.28.2&quot;)
+cmdstan_version()</code></pre>
+</div>
+<div id="stanファイルのコンパイル読み込み" class="section level2">
+<h2>Stanファイルのコンパイル・読み込み</h2>
+<pre class="r"><code>Gaussian_process_01 &lt;- file.path(&quot;./Gaussian_process_01.stan&quot;)
+Gaussian_process_02 &lt;- file.path(&quot;./Gaussian_process_02.stan&quot;)
+mod01 &lt;- cmdstan_model(Gaussian_process_01)
+mod02 &lt;- cmdstan_model(Gaussian_process_02)</code></pre>
+</div>
+<div id="入力が一次元のガウス過程回帰正弦波予測" class="section level2">
+<h2>入力が一次元のガウス過程回帰(正弦波予測)</h2>
+<pre class="r"><code># 正弦波をデータとして利用
+sin_data &lt;- data.frame(x=seq(0,12.25*pi,length.out = 60), y=sin(seq(0,12.25*pi,length.out = 60)))
+N1 &lt;- nrow(sin_data)
+x1 &lt;- sin_data$x
+y1 &lt;- sin_data$y
+N2 &lt;- 15
+x2 &lt;- c(seq(max(x1)+0.2, max(x1)+2*pi, length.out = 5), seq(min(x1), max(x1), length.out = 5), seq(min(x1)-2*pi, min(x1)-0.2, length.out = 5))
+
+standata_sin &lt;- list(N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)</code></pre>
+<pre class="r"><code>MCMC_sin &lt;- mod01$sample(standata_sin,
+                       iter_warmup = 1000,
+                       iter_sampling = 1000,
+                       chains = 4,
+                       parallel_chains = 4,
+                       refresh = 50)</code></pre>
+<pre class="r"><code>pred &lt;- MCMC_sin$summary() %&gt;%
+  dplyr::filter(grepl(&#39;y&#39;, variable))
+plot01 &lt;- 
+  ggplot()+
+  geom_point(aes(x=x1, y=y1),alpha = 0.5)+
+  geom_line(aes(x=x1, y=y1),alpha = 0.5)+
+  geom_point(data=pred,aes(x=x2, y=mean),color=&quot;blue&quot;)+
+  geom_ribbon(data=pred,aes(x=x2,y=mean,ymin=q5,ymax=q95),fill=&quot;blue&quot;,alpha=0.5)+
+  theme_light()</code></pre>
+<p>グレーが訓練データ、青が予測平均と95%信用区間。</p>
+<p>内挿についてはほとんど誤差なく、外挿についても正弦波の傾向は捉えている。</p>
+<pre class="r"><code>plot01</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="入力が多次元のガウス過程回帰" class="section level2">
+<h2>入力が多次元のガウス過程回帰</h2>
+<pre class="r"><code>iris_data &lt;- 
+  as_tibble(iris) %&gt;%
+  select(-Species) %&gt;%
+  scale() %&gt;%
+  as_tibble() %&gt;%
+  mutate(ID = row_number())
+
+# 25%をテスト用に分ける。
+train &lt;- iris_data %&gt;% filter(ID%%4 != 0) %&gt;% as.matrix()
+test &lt;- iris_data %&gt;% filter(ID%%4 == 0) %&gt;% as.matrix()
+
+N1 &lt;- nrow(train)
+x1 &lt;- train[,2:4]
+y1 &lt;- train[,1]
+N2 &lt;- nrow(test)
+x2 &lt;- test[,2:4]
+D &lt;- ncol(x1)
+
+standata_iris &lt;- list(D = D, N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)</code></pre>
+<pre class="r"><code>MCMC_iris &lt;- mod02$sample(standata_iris,
+                       iter_warmup = 1000,
+                       iter_sampling = 1000,
+                       chains = 4,
+                       parallel_chains = 4,
+                       refresh = 50)</code></pre>
+<p>テストデータのy-yプロット(実現値と予測値のプロット)</p>
+<p>irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。</p>
+<pre class="r"><code>yyplot_iris &lt;- MCMC_iris$summary() %&gt;%
+  dplyr::filter(grepl(&#39;y2&#39;, variable)) %&gt;%
+  ggplot()+
+  geom_abline(slope=1, intercept=0, alpha = 0.3)+
+  geom_point(aes(x=test[,1], y=mean), color = &quot;blue&quot;, alpha=0.5)+
+  geom_errorbar(aes(x=test[,1], y=mean,ymin=q5, ymax=q95), alpha=0.5, color = &quot;blue&quot;)+
+  coord_fixed()+
+  xlab(&quot;Sepal.Length&quot;)+
+  ylab(&quot;Prediction&quot;)+
+  theme_bw()</code></pre>
+<p>テストデータのy-yプロット(実現値と予測値のプロット)</p>
+<p>irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。</p>
+<pre class="r"><code>yyplot_iris</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+</div>
+<div id="stanコード" class="section level2">
+<h2>Stanコード</h2>
+<pre class="r"><code>mod01$print()</code></pre>
+<pre><code>## //
+## // This Stan program defines a simple model, with a
+## // vector of values &#39;y&#39; modeled as normally distributed
+## // with mean &#39;mu&#39; and standard deviation &#39;sigma&#39;.
+## //
+## // Learn more about model development with Stan at:
+## //
+## //    http://mc-stan.org/users/interfaces/rstan.html
+## //    https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+## //
+## 
+## data {
+##    int&lt;lower=1&gt; N1;
+##    int&lt;lower=1&gt; N2;
+##    vector[N1] x1;
+##    vector[N1] y1;
+##    vector[N2] x2;
+## }
+## 
+## transformed data {
+##    int&lt;lower=1&gt; N = N1 + N2;
+##    vector[N] x;
+##    vector[N] Mu;
+##    real vx;
+##    real delta = 1e-4;
+## 
+##    for (n in 1:N1) x[n] = x1[n];
+##    for (n in 1:N2) x[N1 + n] = x2[n];
+##    for (i in 1:N) Mu[i] = 0;
+##    vx = variance(x);
+## }
+## 
+## parameters {
+##    vector[N2] y2;
+##    vector&lt;lower=0&gt;[3] theta;
+##    
+## }
+## 
+## model {
+##    matrix[N, N] Cov;
+##    vector[N] y;
+##    for (n in 1:N1) y[n] = y1[n];
+##    for (n in 1:N2) y[N1 + n] = y2[n];
+## 
+##    
+##    for (i in 1:N)
+##       for (j in 1:N)
+##          Cov[i,j] = theta[1]*exp(-pow(x[i] - x[j],2)/(theta[2]*vx)) + (i==j ? theta[3] : 0.0);
+##          
+##    //for (i in 1:N)
+##       //for (j in 1:N)
+##          //Cov[i,j] = theta[1]*(1/(1 + theta[2]*pow(x[i] - x[j],2)/vx)) + (i==j ? theta[3] : 0.0);
+##    
+## 
+##    y ~ multi_normal(Mu, Cov);
+##    theta ~ normal(0,1);
+## }</code></pre>
+<pre class="r"><code>mod02$print()</code></pre>
+<pre><code>## //
+## // This Stan program defines a simple model, with a
+## // vector of values &#39;y&#39; modeled as normally distributed
+## // with mean &#39;mu&#39; and standard deviation &#39;sigma&#39;.
+## //
+## // Learn more about model development with Stan at:
+## //
+## //    http://mc-stan.org/users/interfaces/rstan.html
+## //    https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+## //
+## 
+## data {
+##    int N1;
+##    int D;
+##    vector[D] x1[N1];
+##    vector[N1] y1;
+##    int N2;
+##    vector[D] x2[N2];
+##    }
+## transformed data {
+##    real delta = 1e-9;
+##    int N = N1 + N2;
+##    vector[D] x[N];
+##    for (n1 in 1:N1) x[n1] = x1[n1];
+##    for (n2 in 1:N2) x[N1 + n2] = x2[n2];
+## }
+## parameters {
+##    real&lt;lower=0&gt; rho;
+##    real&lt;lower=0&gt; alpha;
+##    real&lt;lower=0&gt; sigma;
+##    vector[N] eta;
+## }
+## transformed parameters {
+##    vector[N] f;
+##    {
+##       matrix[N, N] L_K;
+##       matrix[N, N] K = cov_exp_quad(x, alpha, rho);
+##       // diagonal elements
+##       for (n in 1:N)
+##          K[n, n] = K[n, n] + delta;
+##       L_K = cholesky_decompose(K);
+##       f = L_K * eta;
+##    }
+## }
+## model {
+##    rho ~ inv_gamma(5, 5);
+##    alpha ~ normal(0, 1);
+##    sigma ~ normal(0, 1);
+##    eta ~ normal(0, 1);
+##    y1 ~ normal(f[1:N1], sigma);
+## }
+## generated quantities {
+##    vector[N2] y2;
+##    for (n2 in 1:N2)
+##       y2[n2] = normal_rng(f[N1 + n2], sigma);
+## }</code></pre>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

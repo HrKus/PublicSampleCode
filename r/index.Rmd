@@ -1,11 +1,15 @@
 ---
-title: "CmdStanRの導入とガウス過程の演習"
-output: html_notebook
+title: "CmdStanRの導入とガウス過程回帰の演習"
+author: "南木　悠"
+date: "12/20/2021"
+output: html_document
 ---
 
-2021/12/21 Yu NAMMOKU
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(cache = TRUE,eval=FALSE)
+```
 
-インストール
+## インストール
 
 ```{r}
 # we recommend running this is a fresh R session or restarting your current session
@@ -25,28 +29,25 @@ set_cmdstan_path(path = "/usr/local/cmdstan-2.28.2")
 cmdstan_version()
 ```
 
-Stanファイルのコンパイル・読み込み
+## Stanファイルのコンパイル・読み込み
 
 ```{r}
 Gaussian_process_01 <- file.path("./Gaussian_process_01.stan")
 Gaussian_process_02 <- file.path("./Gaussian_process_02.stan")
 mod01 <- cmdstan_model(Gaussian_process_01)
 mod02 <- cmdstan_model(Gaussian_process_02)
-
-mod01$print()
-mod02$print()
 ```
 
 ## 入力が一次元のガウス過程回帰(正弦波予測)
 
 ```{r}
 # 正弦波をデータとして利用
-sin_data <- data.frame(x=seq(1,40,length.out = 60), y=sin(seq(1,40,length.out = 60)))
+sin_data <- data.frame(x=seq(0,12.25*pi,length.out = 60), y=sin(seq(0,12.25*pi,length.out = 60)))
 N1 <- nrow(sin_data)
-x1 <- sin_data$x - mean(sin_data$x)
-y1 <- sin_data$y - mean(sin_data$y)
-N2 <- 40
-x2 <- seq(min(x1)-10, max(x1)+10, length.out = 40)
+x1 <- sin_data$x
+y1 <- sin_data$y
+N2 <- 15
+x2 <- c(seq(max(x1)+0.2, max(x1)+2*pi, length.out = 5), seq(min(x1), max(x1), length.out = 5), seq(min(x1)-2*pi, min(x1)-0.2, length.out = 5))
 
 standata_sin <- list(N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)
 ```
@@ -60,19 +61,24 @@ MCMC_sin <- mod01$sample(standata_sin,
                        refresh = 50)
 ```
 
-グレーが訓練データ、青が予測平均と95%信用区間。
-
-内挿についてはほとんど誤差なく、外挿についても正弦波の傾向は捉えている。
-
 ```{r}
 pred <- MCMC_sin$summary() %>%
   dplyr::filter(grepl('y', variable))
-ggplot()+
+plot01 <- 
+  ggplot()+
   geom_point(aes(x=x1, y=y1),alpha = 0.5)+
   geom_line(aes(x=x1, y=y1),alpha = 0.5)+
   geom_point(data=pred,aes(x=x2, y=mean),color="blue")+
   geom_ribbon(data=pred,aes(x=x2,y=mean,ymin=q5,ymax=q95),fill="blue",alpha=0.5)+
   theme_light()
+```
+
+グレーが訓練データ、青が予測平均と95%信用区間。
+
+内挿についてはほとんど誤差なく、外挿についても正弦波の傾向は捉えている。
+
+```{r,eval=TRUE}
+plot01
 ```
 
 ## 入力が多次元のガウス過程回帰
@@ -123,6 +129,19 @@ yyplot_iris <- MCMC_iris$summary() %>%
   xlab("Sepal.Length")+
   ylab("Prediction")+
   theme_bw()
+```
 
+テストデータのy-yプロット(実現値と予測値のプロット)
+
+irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。
+
+```{r,eval=TRUE}
 yyplot_iris
+```
+
+## Stanコード
+
+```{r,eval=TRUE}
+mod01$print()
+mod02$print()
 ```
