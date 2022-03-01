@@ -2,4 +2,7 @@
 .Rhistory
 *.stan
 Gaussian*
-*.Rproj
+*.Rproj.user
+_site.yml
+*.Rmd
+doc/
