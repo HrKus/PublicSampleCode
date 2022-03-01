@@ -3,6 +3,7 @@
 *.stan
 Gaussian*
 *.Rproj.user
+*.Rproj
 _site.yml
 *.Rmd
 doc/
