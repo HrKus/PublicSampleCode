@@ -2,8 +2,10 @@
 .Rhistory
 *.stan
 Gaussian*
-*.Rproj.user
+*
+.Rproj.user
 *.Rproj
 _site.yml
 *.Rmd
 doc/
+.DS_Store
