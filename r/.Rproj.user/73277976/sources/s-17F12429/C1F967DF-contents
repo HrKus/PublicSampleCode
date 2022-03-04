@@ -1,7 +1,0 @@
-name: "R"
-navbar:
-  title: "R codes"
-  left:
-    - text: "Home"
-      href: index.html
-output_dir: "docs"

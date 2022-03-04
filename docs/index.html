@@ -9,11 +9,9 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="南木　悠" />
 
-<meta name="date" content="2021-12-20" />
 
-<title>CmdStanRの導入とガウス過程回帰の演習</title>
+<title>花の反射スペクトル解析</title>
 
 <script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -244,7 +242,10 @@ $(document).ready(function () {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
-  <a href="index.html">Home</a>
+  <a href="index.html">Code1</a>
+</li>
+<li>
+  <a href="GP.html">Code2</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -258,224 +259,231 @@ $(document).ready(function () {
 
 
 
-<h1 class="title toc-ignore">CmdStanRの導入とガウス過程回帰の演習</h1>
-<h4 class="author">南木　悠</h4>
-<h4 class="date">12/20/2021</h4>
+<h1 class="title toc-ignore">花の反射スペクトル解析</h1>
 
 </div>
 
 
-<div id="インストール" class="section level2">
-<h2>インストール</h2>
-<pre class="r"><code># we recommend running this is a fresh R session or restarting your current session
-install.packages(&quot;cmdstanr&quot;, repos = c(&quot;https://mc-stan.org/r-packages/&quot;, getOption(&quot;repos&quot;)))</code></pre>
-<pre class="r"><code>library(cmdstanr)
-library(posterior)
-library(bayesplot)
-library(tidyverse)
-color_scheme_set(&quot;brightblue&quot;)</code></pre>
-<pre class="r"><code>set_cmdstan_path(path = &quot;/usr/local/cmdstan-2.28.2&quot;)
-cmdstan_version()</code></pre>
-</div>
-<div id="stanファイルのコンパイル読み込み" class="section level2">
-<h2>Stanファイルのコンパイル・読み込み</h2>
-<pre class="r"><code>Gaussian_process_01 &lt;- file.path(&quot;./Gaussian_process_01.stan&quot;)
-Gaussian_process_02 &lt;- file.path(&quot;./Gaussian_process_02.stan&quot;)
-mod01 &lt;- cmdstan_model(Gaussian_process_01)
-mod02 &lt;- cmdstan_model(Gaussian_process_02)</code></pre>
-</div>
-<div id="入力が一次元のガウス過程回帰正弦波予測" class="section level2">
-<h2>入力が一次元のガウス過程回帰(正弦波予測)</h2>
-<pre class="r"><code># 正弦波をデータとして利用
-sin_data &lt;- data.frame(x=seq(0,12.25*pi,length.out = 60), y=sin(seq(0,12.25*pi,length.out = 60)))
-N1 &lt;- nrow(sin_data)
-x1 &lt;- sin_data$x
-y1 &lt;- sin_data$y
-N2 &lt;- 15
-x2 &lt;- c(seq(max(x1)+0.2, max(x1)+2*pi, length.out = 5), seq(min(x1), max(x1), length.out = 5), seq(min(x1)-2*pi, min(x1)-0.2, length.out = 5))
+<pre class="r"><code>library(&quot;tidyverse&quot;) 
+library(&quot;RcppRoll&quot;)
+library(&quot;magrittr&quot;)
+library(&quot;plotly&quot;)
+library(&quot;vegan&quot;)
+library(&quot;Rtsne&quot;)
+library(&quot;pavo&quot;)
+library(&quot;cmdstanr&quot;)
+library(&quot;posterior&quot;)
+library(&quot;bayesplot&quot;)</code></pre>
+<div id="データ読み込み前処理" class="section level2">
+<h2>データ読み込み・前処理</h2>
+<p>花の反射率データはFloral Reflectance Databaseから取得 <a href="http://www.reflectance.co.uk/" class="uri">http://www.reflectance.co.uk/</a></p>
+<pre class="r"><code># データ読み込み
+FReD &lt;- read_tsv(&quot;FReD.tsv&quot;) %&gt;% dplyr::distinct()
+Reflectance &lt;- read_csv(&quot;FReD_reflectance.csv&quot;)</code></pre>
+<pre class="r"><code># 反射率のデータをスプライン補完
+Spline_Reflectance &lt;- tibble(ID=NA, wavelength=NA, reflectance=NA)
 
-standata_sin &lt;- list(N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)</code></pre>
-<pre class="r"><code>MCMC_sin &lt;- mod01$sample(standata_sin,
-                       iter_warmup = 1000,
-                       iter_sampling = 1000,
-                       chains = 4,
-                       parallel_chains = 4,
-                       refresh = 50)</code></pre>
-<pre class="r"><code>pred &lt;- MCMC_sin$summary() %&gt;%
-  dplyr::filter(grepl(&#39;y&#39;, variable))
-plot01 &lt;- 
-  ggplot()+
-  geom_point(aes(x=x1, y=y1),alpha = 0.5)+
-  geom_line(aes(x=x1, y=y1),alpha = 0.5)+
-  geom_point(data=pred,aes(x=x2, y=mean),color=&quot;blue&quot;)+
-  geom_ribbon(data=pred,aes(x=x2,y=mean,ymin=q5,ymax=q95),fill=&quot;blue&quot;,alpha=0.5)+
-  theme_light()</code></pre>
-<p>グレーが訓練データ、青が予測平均と95%信用区間。</p>
-<p>内挿についてはほとんど誤差なく、外挿についても正弦波の傾向は捉えている。</p>
-<pre class="r"><code>plot01</code></pre>
-<p><img src="index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
-</div>
-<div id="入力が多次元のガウス過程回帰" class="section level2">
-<h2>入力が多次元のガウス過程回帰</h2>
-<pre class="r"><code>iris_data &lt;- 
-  as_tibble(iris) %&gt;%
-  select(-Species) %&gt;%
-  scale() %&gt;%
+for (i in 1:nrow(FReD)) {
+  id = FReD$ID[i]
+  wl = FReD_reflectance %&gt;% filter(ID == id) %&gt;% .$wavelength
+  rf = FReD_reflectance %&gt;% filter(ID == id) %&gt;% .$reflectance
+  if (length(wl) == 0) { next }
+  Spline_Reflectance %&lt;&gt;% bind_rows(tibble(ID = rep(id, 401),
+                            wavelength = c(300:700),
+                            reflectance = spline(x = wl, y = rf, xmax = 700, xmin = 300, n=401)$y))
+}
+
+Spline_Reflectance %&lt;&gt;% filter(!is.na(ID)) %&gt;% mutate(reflectance = ifelse(reflectance&lt;0, 0, reflectance))</code></pre>
+<pre class="r"><code>#スペクトルからRGB値へ
+
+# ヒト
+HumanColor &lt;-
+  Spline_Reflectance %&gt;%
+  mutate(reflectance = reflectance*100) %&gt;%
+  pivot_wider(names_from = ID, values_from = reflectance, values_fill = 0) %&gt;%
+  rename(wl = wavelength) %&gt;%
+  pavo::as.rspec() %&gt;%
+  pavo::spec2rgb() %&gt;%
   as_tibble() %&gt;%
-  mutate(ID = row_number())
+  rename(humancolor = value) %&gt;%
+  bind_cols(ID = unique(Spline_Reflectance$ID))
 
-# 25%をテスト用に分ける。
-train &lt;- iris_data %&gt;% filter(ID%%4 != 0) %&gt;% as.matrix()
-test &lt;- iris_data %&gt;% filter(ID%%4 == 0) %&gt;% as.matrix()
+# ミツバチ(Green,Blue,UVをヒトのRGBにあてる)
+BeeColor &lt;- 
+  Spline_Reflectance %&gt;%
+  mutate(reflectance = reflectance) %&gt;%
+  pivot_wider(names_from = ID, values_from = reflectance, values_fill = 0) %&gt;%
+  rename(wl = wavelength) %&gt;%
+  pavo::as.rspec() %&gt;%
+  pavo::vismodel(visual = &quot;apis&quot;,
+           qcatch = &quot;Qi&quot;,
+           relative = FALSE,
+           #vonkries = TRUE,
+           #bkg = &quot;green&quot;,
+           achromatic = &quot;l&quot;) %&gt;%
+  mutate(s=round(255*s/max(s)),
+         m=round(255*m/max(m)),
+         l=round(255*l/max(l)),
+         beecolor = tolower(paste0(&quot;#&quot;, sprintf(&quot;%02X&quot;, l), sprintf(&quot;%02X&quot;, m), sprintf(&quot;%02X&quot;, s)))) %&gt;%
+  select(beecolor) %&gt;%
+  bind_cols(ID = unique(Spline_Reflectance$ID))</code></pre>
+<pre class="r"><code># データ結合
+FReD_dat &lt;- 
+  FReD %&gt;%
+  inner_join(Spline_Reflectance, by = &quot;ID&quot;) %&gt;%
+  inner_join(HumanColor, by = &quot;ID&quot;) %&gt;%
+  inner_join(BeeColor, by = &quot;ID&quot;) %&gt;%
+  mutate(name = paste(Genus, Species, sep = &quot; &quot;), name_ID = paste(name, ID),
+         Section = case_when(str_detect(`Flower Section`, &quot;flower&quot;) ~ &quot;Flower&quot;,
+                             Family == &quot;Asteraceae&quot; &amp; str_detect(`Flower Section`, &quot;bract&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;nectar guides&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;lip&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;nectar guides&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;keel&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;bell&quot;) ~ &quot;Flower&quot;,
+                             str_detect(`Flower Section`, &quot;leaf&quot;) ~ &quot;Leaf&quot;,
+                             TRUE ~ &quot;Others&quot;))
 
-N1 &lt;- nrow(train)
-x1 &lt;- train[,2:4]
-y1 &lt;- train[,1]
-N2 &lt;- nrow(test)
-x2 &lt;- test[,2:4]
-D &lt;- ncol(x1)
-
-standata_iris &lt;- list(D = D, N1 = N1, N2 = N2, y1 = y1, x1 = x1, x2 = x2)</code></pre>
-<pre class="r"><code>MCMC_iris &lt;- mod02$sample(standata_iris,
-                       iter_warmup = 1000,
-                       iter_sampling = 1000,
-                       chains = 4,
-                       parallel_chains = 4,
-                       refresh = 50)</code></pre>
-<p>テストデータのy-yプロット(実現値と予測値のプロット)</p>
-<p>irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。</p>
-<pre class="r"><code>yyplot_iris &lt;- MCMC_iris$summary() %&gt;%
-  dplyr::filter(grepl(&#39;y2&#39;, variable)) %&gt;%
-  ggplot()+
-  geom_abline(slope=1, intercept=0, alpha = 0.3)+
-  geom_point(aes(x=test[,1], y=mean), color = &quot;blue&quot;, alpha=0.5)+
-  geom_errorbar(aes(x=test[,1], y=mean,ymin=q5, ymax=q95), alpha=0.5, color = &quot;blue&quot;)+
-  coord_fixed()+
-  xlab(&quot;Sepal.Length&quot;)+
-  ylab(&quot;Prediction&quot;)+
-  theme_bw()</code></pre>
-<p>テストデータのy-yプロット(実現値と予測値のプロット)</p>
-<p>irisのSepal.Width, Petal.Length, Petal.WidthからSepal.Lengthを予測。</p>
-<pre class="r"><code>yyplot_iris</code></pre>
-<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+# tidyデータから横長へ
+FReD_dat_wider &lt;- 
+  FReD_dat %&gt;%
+  filter(Section != &quot;Others&quot;) %&gt;%
+  distinct(name_ID, humancolor, beecolor, reflectance, wavelength, Section) %&gt;%
+  pivot_wider(names_from = wavelength, values_from = reflectance, values_fill = NA) </code></pre>
 </div>
-<div id="stanコード" class="section level2">
-<h2>Stanコード</h2>
-<pre class="r"><code>mod01$print()</code></pre>
-<pre><code>## //
-## // This Stan program defines a simple model, with a
-## // vector of values &#39;y&#39; modeled as normally distributed
-## // with mean &#39;mu&#39; and standard deviation &#39;sigma&#39;.
-## //
-## // Learn more about model development with Stan at:
-## //
-## //    http://mc-stan.org/users/interfaces/rstan.html
-## //    https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
-## //
-## 
-## data {
-##    int&lt;lower=1&gt; N1;
-##    int&lt;lower=1&gt; N2;
-##    vector[N1] x1;
-##    vector[N1] y1;
-##    vector[N2] x2;
-## }
-## 
-## transformed data {
-##    int&lt;lower=1&gt; N = N1 + N2;
-##    vector[N] x;
-##    vector[N] Mu;
-##    real vx;
-##    real delta = 1e-4;
-## 
-##    for (n in 1:N1) x[n] = x1[n];
-##    for (n in 1:N2) x[N1 + n] = x2[n];
-##    for (i in 1:N) Mu[i] = 0;
-##    vx = variance(x);
-## }
-## 
-## parameters {
-##    vector[N2] y2;
-##    vector&lt;lower=0&gt;[3] theta;
-##    
-## }
-## 
-## model {
-##    matrix[N, N] Cov;
-##    vector[N] y;
-##    for (n in 1:N1) y[n] = y1[n];
-##    for (n in 1:N2) y[N1 + n] = y2[n];
-## 
-##    
-##    for (i in 1:N)
-##       for (j in 1:N)
-##          Cov[i,j] = theta[1]*exp(-pow(x[i] - x[j],2)/(theta[2]*vx)) + (i==j ? theta[3] : 0.0);
-##          
-##    //for (i in 1:N)
-##       //for (j in 1:N)
-##          //Cov[i,j] = theta[1]*(1/(1 + theta[2]*pow(x[i] - x[j],2)/vx)) + (i==j ? theta[3] : 0.0);
-##    
-## 
-##    y ~ multi_normal(Mu, Cov);
-##    theta ~ normal(0,1);
-## }</code></pre>
-<pre class="r"><code>mod02$print()</code></pre>
-<pre><code>## //
-## // This Stan program defines a simple model, with a
-## // vector of values &#39;y&#39; modeled as normally distributed
-## // with mean &#39;mu&#39; and standard deviation &#39;sigma&#39;.
-## //
-## // Learn more about model development with Stan at:
-## //
-## //    http://mc-stan.org/users/interfaces/rstan.html
-## //    https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
-## //
-## 
-## data {
-##    int N1;
-##    int D;
-##    vector[D] x1[N1];
-##    vector[N1] y1;
-##    int N2;
-##    vector[D] x2[N2];
-##    }
-## transformed data {
-##    real delta = 1e-9;
-##    int N = N1 + N2;
-##    vector[D] x[N];
-##    for (n1 in 1:N1) x[n1] = x1[n1];
-##    for (n2 in 1:N2) x[N1 + n2] = x2[n2];
-## }
-## parameters {
-##    real&lt;lower=0&gt; rho;
-##    real&lt;lower=0&gt; alpha;
-##    real&lt;lower=0&gt; sigma;
-##    vector[N] eta;
-## }
-## transformed parameters {
-##    vector[N] f;
-##    {
-##       matrix[N, N] L_K;
-##       matrix[N, N] K = cov_exp_quad(x, alpha, rho);
-##       // diagonal elements
-##       for (n in 1:N)
-##          K[n, n] = K[n, n] + delta;
-##       L_K = cholesky_decompose(K);
-##       f = L_K * eta;
-##    }
-## }
-## model {
-##    rho ~ inv_gamma(5, 5);
-##    alpha ~ normal(0, 1);
-##    sigma ~ normal(0, 1);
-##    eta ~ normal(0, 1);
-##    y1 ~ normal(f[1:N1], sigma);
-## }
-## generated quantities {
-##    vector[N2] y2;
-##    for (n2 in 1:N2)
-##       y2[n2] = normal_rng(f[N1 + n2], sigma);
-## }</code></pre>
+<div id="分光反射率" class="section level2">
+<h2>分光反射率</h2>
+<pre class="r"><code>FReD_dat %&gt;% 
+  filter(str_detect(Section, &quot;Flower&quot;)) %&gt;%
+  ggplot(aes(x=wavelength, y=reflectance, group = name_ID))+
+  geom_line(aes(color = humancolor), size = 0.05)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;black&quot;, colour = &quot;black&quot;))+
+  ggtitle(&quot;Flower&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<pre class="r"><code>FReD_dat %&gt;% 
+  filter(str_detect(Section, &quot;Leaf&quot;)) %&gt;%
+  ggplot(aes(x=wavelength, y=reflectance, group = name_ID))+
+  geom_line(aes(color = humancolor), size = 0.05)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;black&quot;, colour = &quot;black&quot;))+
+  ggtitle(&quot;Leaf&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-6-2.png" width="672" /></p>
+</div>
+<div id="pca" class="section level2">
+<h2>PCA</h2>
+<pre class="r"><code>PCA_result &lt;- 
+  princomp(FReD_dat_wider %&gt;% dplyr::select(-(1:4)), cor = FALSE) %&gt;%
+  scores() %&gt;%
+  as_data_frame()</code></pre>
+<pre class="r"><code>ggplot(PCA_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = Comp.1, y= Comp.2, color = humancolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(PCA_result$Comp.1, PCA_result$Comp.2),max(PCA_result$Comp.1, PCA_result$Comp.2))+
+  ylim(min(PCA_result$Comp.1, PCA_result$Comp.2),max(PCA_result$Comp.1, PCA_result$Comp.2))+
+  xlab(&quot;PC1&quot;)+
+  ylab(&quot;PC2&quot;)+
+  ggtitle(&quot;PCA&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>色のまとまりは見えるが葉と花の分離は上手くできていない。</p>
+</div>
+<div id="nmds" class="section level2">
+<h2>nMDS</h2>
+<pre class="r"><code>NMDS_result &lt;- 
+  metaMDS(FReD_dat_wider %&gt;% dplyr::select(-(1:4)), dist=&quot;euclidean&quot;) %&gt;%
+  scores() %&gt;%
+  as_data_frame() </code></pre>
+<pre class="r"><code>ggplot(NMDS_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = NMDS1, y= NMDS2, color = humancolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(NMDS_result$NMDS1, NMDS_result$NMDS2),max(NMDS_result$NMDS1, NMDS_result$NMDS2))+
+  ylim(min(NMDS_result$NMDS1, NMDS_result$NMDS2),max(NMDS_result$NMDS1, NMDS_result$NMDS2))+
+  ggtitle(&quot;nMDS&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>PCAよりは分離して見える(特に赤系)。</p>
+</div>
+<div id="t-sne" class="section level2">
+<h2>t-SNE</h2>
+<pre class="r"><code>SNE_result &lt;- 
+  Rtsne(FReD_dat_wider %&gt;% dplyr::select(-(1:4)), perplexity=50, theta=0, check_duplicates = FALSE) %&gt;%
+  .$Y %&gt;%
+  as_data_frame()</code></pre>
+<pre class="r"><code>ggplot(SNE_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = V1, y= V2, color = humancolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(SNE_result$V1, SNE_result$V2),max(SNE_result$V1, SNE_result$V2))+
+  ylim(min(SNE_result$V1, SNE_result$V2),max(SNE_result$V1, SNE_result$V2))+
+  ggtitle(&quot;t-SNE ( perplexity=50 )&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>葉が花と分離できている。花内でもまとまりがわかりやすい。</p>
+</div>
+<div id="ミツバチ色覚ver." class="section level2">
+<h2>ミツバチ色覚ver.</h2>
+<p>ミツバチのG,B,UVをヒトのRGBに当てた。</p>
+<pre class="r"><code>FReD_dat %&gt;% 
+  filter(str_detect(Section, &quot;Flower&quot;)) %&gt;%
+  ggplot(aes(x=wavelength, y=reflectance, group = name_ID))+
+  geom_line(aes(color = beecolor), size = 0.05)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;black&quot;, colour = &quot;black&quot;))+
+  ggtitle(&quot;Flower&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<pre class="r"><code>FReD_dat %&gt;% 
+  filter(str_detect(Section, &quot;Leaf&quot;)) %&gt;%
+  ggplot(aes(x=wavelength, y=reflectance, group = name_ID))+
+  geom_line(aes(color = beecolor), size = 0.05)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;black&quot;, colour = &quot;black&quot;))+
+  ggtitle(&quot;Leaf&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-13-2.png" width="672" /></p>
+<pre class="r"><code># PCA
+ggplot(PCA_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = Comp.1, y= Comp.2, color = beecolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(PCA_result$Comp.1, PCA_result$Comp.2),max(PCA_result$Comp.1, PCA_result$Comp.2))+
+  ylim(min(PCA_result$Comp.1, PCA_result$Comp.2),max(PCA_result$Comp.1, PCA_result$Comp.2))+
+  xlab(&quot;PC1&quot;)+
+  ylab(&quot;PC2&quot;)+
+  ggtitle(&quot;PCA&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-13-3.png" width="672" /></p>
+<pre class="r"><code># nMDS
+ggplot(NMDS_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = NMDS1, y= NMDS2, color = beecolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(NMDS_result$NMDS1, NMDS_result$NMDS2),max(NMDS_result$NMDS1, NMDS_result$NMDS2))+
+  ylim(min(NMDS_result$NMDS1, NMDS_result$NMDS2),max(NMDS_result$NMDS1, NMDS_result$NMDS2))+
+  ggtitle(&quot;nMDS&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-13-4.png" width="672" /></p>
+<pre class="r"><code># t-SNE
+ggplot(SNE_result %&gt;% bind_cols(FReD_dat_wider %&gt;% dplyr::select(1:4)))+
+  geom_point(aes(x = V1, y= V2, color = beecolor, group = name_ID, shape = Section), size =3)+
+  scale_color_identity()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = &quot;white&quot;, colour = &quot;black&quot;))+
+  coord_equal()+
+  xlim(min(SNE_result$V1, SNE_result$V2),max(SNE_result$V1, SNE_result$V2))+
+  ylim(min(SNE_result$V1, SNE_result$V2),max(SNE_result$V1, SNE_result$V2))+
+  ggtitle(&quot;t-SNE ( perplexity=50 )&quot;)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-13-5.png" width="672" /></p>
 </div>
 
 
